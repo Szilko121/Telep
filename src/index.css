@@ -1,0 +1,383 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 142 71% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 142 71% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 142 71% 15%;
+    --primary: 142 71% 35%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 80% 45%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 142 20% 95%;
+    --muted-foreground: 142 20% 40%;
+    --accent: 32 95% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 142 20% 88%;
+    --input: 142 20% 88%;
+    --ring: 142 71% 35%;
+    --radius: 0.75rem;
+  }
+
+  .dark {
+    --background: 142 30% 8%;
+    --foreground: 142 20% 95%;
+    --card: 142 25% 12%;
+    --card-foreground: 142 20% 95%;
+    --popover: 142 25% 12%;
+    --popover-foreground: 142 20% 95%;
+    --primary: 142 71% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 80% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 142 20% 20%;
+    --muted-foreground: 142 20% 65%;
+    --accent: 32 95% 60%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 142 20% 20%;
+    --input: 142 20% 20%;
+    --ring: 142 71% 45%;
+  }
+
+  /* Neon Glass Theme */
+  .theme-neon {
+    --background: 222 47% 11%;
+    --foreground: 160 100% 90%;
+    --card: 222 47% 11%;
+    --card-foreground: 160 100% 90%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 160 100% 90%;
+    --primary: 160 100% 50%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 300 100% 50%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 222 47% 20%;
+    --muted-foreground: 160 50% 70%;
+    --accent: 180 100% 50%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 340 100% 50%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 160 100% 50%;
+    --input: 222 47% 20%;
+    --ring: 160 100% 50%;
+  }
+
+  /* Forest Theme */
+  .theme-forest {
+    --background: 0 0% 100%;
+    --foreground: 100 60% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 100 60% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 100 60% 15%;
+    --primary: 100 50% 30%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 120 40% 40%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 100 20% 95%;
+    --muted-foreground: 100 30% 40%;
+    --accent: 140 60% 45%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 100 20% 88%;
+    --input: 100 20% 88%;
+    --ring: 100 50% 30%;
+  }
+
+  .theme-forest.dark {
+    --background: 100 40% 8%;
+    --foreground: 100 20% 90%;
+    --card: 100 35% 12%;
+    --card-foreground: 100 20% 90%;
+    --primary: 120 50% 40%;
+    --muted: 100 30% 20%;
+    --border: 100 30% 20%;
+  }
+
+  /* Ocean Theme */
+  .theme-ocean {
+    --background: 0 0% 100%;
+    --foreground: 200 90% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 200 90% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 200 90% 15%;
+    --primary: 200 90% 30%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 190 80% 40%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 200 20% 95%;
+    --muted-foreground: 200 30% 40%;
+    --accent: 180 70% 45%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 200 20% 88%;
+    --input: 200 20% 88%;
+    --ring: 200 90% 30%;
+  }
+
+  .theme-ocean.dark {
+    --background: 200 60% 8%;
+    --foreground: 200 20% 90%;
+    --card: 200 55% 12%;
+    --card-foreground: 200 20% 90%;
+    --primary: 190 80% 45%;
+    --muted: 200 40% 20%;
+    --border: 200 40% 20%;
+  }
+
+  /* Sunset Theme */
+  .theme-sunset {
+    --background: 0 0% 100%;
+    --foreground: 10 80% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 10 80% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 10 80% 15%;
+    --primary: 10 90% 50%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 25 90% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 10 20% 95%;
+    --muted-foreground: 10 30% 40%;
+    --accent: 35 90% 60%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 10 20% 88%;
+    --input: 10 20% 88%;
+    --ring: 10 90% 50%;
+  }
+
+  .theme-sunset.dark {
+    --background: 10 40% 8%;
+    --foreground: 10 20% 90%;
+    --card: 10 35% 12%;
+    --card-foreground: 10 20% 90%;
+    --primary: 25 90% 55%;
+    --muted: 10 30% 20%;
+    --border: 10 30% 20%;
+  }
+
+  /* Purple Theme */
+  .theme-purple {
+    --background: 0 0% 100%;
+    --foreground: 280 60% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 280 60% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 280 60% 15%;
+    --primary: 270 70% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 290 60% 50%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 280 20% 95%;
+    --muted-foreground: 280 30% 40%;
+    --accent: 320 70% 55%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 280 20% 88%;
+    --input: 280 20% 88%;
+    --ring: 270 70% 55%;
+  }
+
+  .theme-purple.dark {
+    --background: 280 40% 8%;
+    --foreground: 280 20% 90%;
+    --card: 280 35% 12%;
+    --card-foreground: 280 20% 90%;
+    --primary: 270 70% 60%;
+    --muted: 280 30% 20%;
+    --border: 280 30% 20%;
+  }
+
+  /* Amber Theme */
+  .theme-amber {
+    --background: 0 0% 100%;
+    --foreground: 40 60% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 40 60% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 40 60% 15%;
+    --primary: 38 90% 50%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 25 85% 55%;
+    --secondary-foreground: 0 0% 0%;
+    --muted: 40 20% 95%;
+    --muted-foreground: 40 30% 40%;
+    --accent: 45 95% 60%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 40 20% 88%;
+    --input: 40 20% 88%;
+    --ring: 38 90% 50%;
+  }
+
+  .theme-amber.dark {
+    --background: 40 25% 8%;
+    --foreground: 40 20% 90%;
+    --card: 40 25% 12%;
+    --card-foreground: 40 20% 90%;
+    --primary: 38 90% 55%;
+    --muted: 40 25% 20%;
+    --border: 40 25% 20%;
+  }
+
+  /* Neon glow effects */
+  .theme-neon .bg-primary {
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.5);
+  }
+
+  .theme-neon .border-primary {
+    box-shadow: 0 0 10px hsl(var(--primary) / 0.3);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* ===== TelepNapló – táblázat kiegészítõ stílusok ===== */
+@layer base {
+  :root{
+    --tp-green-50: #ecfdf5;
+    --tp-green-100:#d1fae5;
+    --tp-green-600:#059669;
+    --tp-ring: rgba(16,185,129,.45);
+    --tp-scroll: rgba(100,116,139,.35);
+  }
+  .dark{
+    --tp-green-50: rgba(6,95,70,.28);
+    --tp-green-100: rgba(16,185,129,.35);
+    --tp-green-600:#10b981;
+    --tp-ring: rgba(16,185,129,.55);
+    --tp-scroll: rgba(148,163,184,.5);
+  }
+}
+
+@layer components {
+  /* Görgetõsáv – ne keménykódolt tailwind utilokra hagyatkozzunk */
+  .tp-scroll{
+    scrollbar-gutter: stable both-edges;
+  }
+  .tp-scroll::-webkit-scrollbar{ width: 8px; height: 8px; }
+  .tp-scroll::-webkit-scrollbar-thumb{
+    background: var(--tp-scroll);
+    border-radius: 9999px;
+  }
+  .tp-scroll:hover::-webkit-scrollbar-thumb{
+    background: rgba(100,116,139,.6);
+  }
+
+  /* Sorok – zebra + kiemelések */
+  .tp-row{ transition: background-color .2s ease, box-shadow .2s ease; }
+  .tp-row--zebra:nth-child(even){ background-color: color-mix(in srgb, white 4%, transparent); }
+  .dark .tp-row--zebra:nth-child(even){ background-color: color-mix(in srgb, black 5%, transparent); }
+
+  .tp-row--today{
+    box-shadow: inset 0 0 0 1px var(--tp-ring);
+    background: color-mix(in srgb, var(--tp-green-50) 65%, transparent);
+  }
+
+  .tp-row--current{
+    background: var(--tp-green-50);
+    box-shadow: inset 0 0 0 1px var(--tp-ring);
+  }
+
+  /* Chipek – mindig olvasható kontraszt */
+  .tp-chip{
+    display:inline-flex; align-items:center; gap:.25rem;
+    border-radius:9999px; padding:2px 8px;
+    font-size:10px; line-height:1; font-weight:600;
+    white-space:nowrap;
+  }
+  .tp-chip--muted{
+    background: rgba(0,0,0,.06);
+    color: rgb(55 65 81);
+    border:1px solid rgba(0,0,0,.06);
+  }
+  .dark .tp-chip--muted{
+    background: rgba(255,255,255,.08);
+    color: rgb(229 231 235);
+    border-color: rgba(255,255,255,.12);
+  }
+  .tp-chip--pill{
+    background: rgba(0,0,0,.04);
+    color: rgb(55 65 81);
+    border:1px solid rgba(0,0,0,.06);
+    font-size:11px;
+  }
+  .dark .tp-chip--pill{
+    background: rgba(255,255,255,.06);
+    color: rgb(229 231 235);
+    border-color: rgba(255,255,255,.12);
+  }
+  .tp-chip--current{
+    background: var(--tp-green-600);
+    color:#fff;
+    border:1px solid transparent;
+  }
+}
+
+/* Mozgás-érzékeny felhasználóknak */
+@media (prefers-reduced-motion: reduce){
+  .tp-row{ transition: none; }
+}
+/* --- KÖTELEZÕ FELÜLÍRÁS: a teljes sor (és minden cella) legyen zöld --- */
+.tp-row--current,
+.tp-row--current > th,
+.tp-row--current > td {
+  background-color: var(--tp-green-50) !important;
+}
+
+/* Hover/zebra ne mossa felül */
+.tp-row--current:hover,
+.tp-row--current:hover > th,
+.tp-row--current:hover > td {
+  background-color: var(--tp-green-50) !important;
+}
+
+/* „Ma” halvány jelölés – ha kell a teljes sorra */
+.tp-row--today,
+.tp-row--today > th,
+.tp-row--today > td {
+  background-color: color-mix(in srgb, var(--tp-green-50) 45%, transparent) !important;
+}
+
+/* Finom zöld keret a kijelölt sornak */
+.tp-row--current > th,
+.tp-row--current > td {
+  box-shadow: inset 0 0 0 1px var(--tp-ring);
+}
+
+/* Sötét témához is erõltessük ugyanazt */
+.dark .tp-row--current,
+.dark .tp-row--current > th,
+.dark .tp-row--current > td {
+  background-color: var(--tp-green-50) !important;
+}

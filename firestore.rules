@@ -1,0 +1,233 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================
+    // 0. SEGÉDFÜGGVÉNYEK
+    // =========================
+
+    function signedIn() { 
+      return request.auth != null; 
+    }
+
+    // Globális (régi) user_roles támogatás
+    function getGlobalRole() {
+      return signedIn() &&
+             exists(/databases/$(database)/documents/user_roles/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/user_roles/$(request.auth.uid)).data.role
+        : null;
+    }
+
+    // Van-e bármilyen tagsága az adott farmon
+    // (farm alatti user_roles VAGY globális user_roles)
+    function hasFarmMembership(farmId) {
+      return signedIn() && (
+        exists(/databases/$(database)/documents/farms/$(farmId)/user_roles/$(request.auth.uid)) ||
+        exists(/databases/$(database)/documents/user_roles/$(request.auth.uid))
+      );
+    }
+
+    // Szerepkör az adott farmhoz
+    function getRole(farmId) {
+      return !signedIn()
+        ? null
+        : exists(/databases/$(database)/documents/farms/$(farmId)/user_roles/$(request.auth.uid))
+          ? get(/databases/$(database)/documents/farms/$(farmId)/user_roles/$(request.auth.uid)).data.role
+          : getGlobalRole();
+    }
+
+    function isManager(farmId) { 
+      let role = getRole(farmId);
+      return role == 'admin' || role == 'főnök';
+    }
+    
+    function isAdmin(farmId) {
+      return getRole(farmId) == 'admin';
+    }
+
+    function isFarmOwner(farmId) {
+      return signedIn() &&
+             exists(/databases/$(database)/documents/farms/$(farmId)) &&
+             get(/databases/$(database)/documents/farms/$(farmId)).data.ownerUid == request.auth.uid;
+    }
+
+    function canReadFarmData(farmId) {
+      return signedIn() && (
+        isFarmOwner(farmId) ||
+        hasFarmMembership(farmId)
+      );
+    }
+
+    function canWriteFarmData(farmId) {
+      return signedIn() && (
+        isFarmOwner(farmId) ||
+        hasFarmMembership(farmId)
+      );
+    }
+
+    function canAdminWriteFarmData(farmId) {
+      return signedIn() && (
+        isFarmOwner(farmId) ||
+        isManager(farmId)
+      );
+    }
+
+    // =========================
+    // 1. FARMS / több telep
+    // =========================
+    
+    match /farms/{farmId} {
+      // Telep létrehozás (setup script / Cloud Functions)
+      allow create: if true;
+
+      // Farm doksi olvasás
+      allow read: if canReadFarmData(farmId);
+
+      // Farm doksi módosítás
+      allow update: if signedIn() && (isFarmOwner(farmId) || isAdmin(farmId));
+
+      // Farm törlés
+      allow delete: if signedIn() && isFarmOwner(farmId);
+
+
+      // 1.1 farms/{farmId}/users
+      match /users/{username} {
+        allow create: if signedIn() && (isManager(farmId) || isFarmOwner(farmId));
+        allow read: if canReadFarmData(farmId);
+        allow update, delete: if signedIn() && (isManager(farmId) || isFarmOwner(farmId));
+      }
+
+      // 1.2 farms/{farmId}/user_roles
+      match /user_roles/{uid} {
+        allow create: if signedIn() && (isManager(farmId) || isFarmOwner(farmId));
+        
+        allow read: if signedIn() && (
+          request.auth.uid == uid ||
+          isManager(farmId) ||
+          isFarmOwner(farmId)
+        );
+
+        allow update, delete: if signedIn() && (isManager(farmId) || isFarmOwner(farmId));
+      }
+
+      // 1.3 WEIGHTS (Turnus / heti mérlegelés)
+      match /weights/{weightId} {
+        allow read: if canReadFarmData(farmId);
+        allow write: if canWriteFarmData(farmId);
+      }
+
+      // META adatok
+      match /meta/{docId} {
+        allow read: if canReadFarmData(farmId);
+        allow write: if canAdminWriteFarmData(farmId);
+      }
+      
+      // Vitamin tervek
+      match /vitamin_plans/{barnId} {
+        allow read: if canReadFarmData(farmId);
+        allow write: if canAdminWriteFarmData(farmId);
+      }
+
+      // Jogosultság beállítások
+      match /settings/permissions {
+        allow read, write: if canAdminWriteFarmData(farmId);
+      }
+
+      // Egyéb settings
+      match /settings/{document=**} {
+        allow read: if canReadFarmData(farmId);
+        allow write: if canAdminWriteFarmData(farmId);
+      }
+
+      // Munkamenetek
+      match /userSessions/{sessionId} {
+        allow create, update: if canWriteFarmData(farmId);
+        allow read: if canAdminWriteFarmData(farmId);
+      }
+
+      // Work requests
+      match /workRequests/{wid} {
+        allow read: if canReadFarmData(farmId);
+        allow create, update: if canWriteFarmData(farmId);
+        allow delete: if canAdminWriteFarmData(farmId);
+      }
+
+      // Értesítések – allow farm members to read their own items
+      match /notifications/{uid}/items/{itemId} {
+        // Read allowed for farm members; uid ensures user only reads own notifications
+        allow read, update, delete: if canReadFarmData(farmId) && request.auth.uid == uid;
+        // Creation requires write permission on the farm
+        allow create: if canWriteFarmData(farmId);
+      }
+
+      // Istálló térkép
+      match /istallo_layouts/{document=**} {
+        allow read: if canReadFarmData(farmId);
+        allow write: if canAdminWriteFarmData(farmId);
+      }
+
+      // Turnusok és al-kollekciók
+      match /turnusok/{turnusId} {
+        allow read: if canReadFarmData(farmId);
+        allow write: if canWriteFarmData(farmId);
+
+        match /{subcollection}/{document=**} {
+          allow read: if canReadFarmData(farmId);
+          allow write: if canWriteFarmData(farmId);
+        }
+      }
+      
+      // Műszakosok
+      match /muszakosok/{id} {
+        allow read: if canReadFarmData(farmId);
+        allow write: if canAdminWriteFarmData(farmId);
+      }
+
+      // Ólak
+      match /olak/{document=**} { 
+        allow read: if canReadFarmData(farmId); 
+        allow write: if canAdminWriteFarmData(farmId); 
+      }
+
+      // Csoportok
+      match /csoportok/{document=**} { 
+        allow read: if canReadFarmData(farmId); 
+        allow write: if canAdminWriteFarmData(farmId); 
+      }
+    }
+
+    // =========================
+    // 2. Globális user_roles (régi rendszer)
+    // =========================
+    match /user_roles/{uid} {
+      allow create: if signedIn() && request.auth.uid == uid;
+      
+      allow read: if signedIn() && (
+        request.auth.uid == uid ||
+        getGlobalRole() == 'admin' ||
+        getGlobalRole() == 'főnök'
+      );
+
+      allow update, delete: if signedIn() && (
+        request.auth.uid == uid ||
+        getGlobalRole() == 'admin' ||
+        getGlobalRole() == 'főnök'
+      );
+    }
+
+    // =========================
+    // 3. owners_farms mapping
+    // =========================
+    match /owners_farms/{docId} {
+       allow read, write: if signedIn();
+    }
+    
+    // =========================
+    // 4. Minden más tiltása
+    // =========================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
