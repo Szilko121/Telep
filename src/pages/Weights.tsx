@@ -39,6 +39,7 @@ import { farmCollection, farmDoc } from "@/lib/farmDb"; // <--- ÚJ IMPORT
 import { getDocs, query, where, orderBy, setDoc, serverTimestamp, getDoc, doc } from "firebase/firestore"; // collection törölve, doc megtartva típusnak ha kell, de függvényként farmDoc lesz
 import { getActiveTurnus, type TurnusDoc } from "@/services/turnus";
 import { addWeightMeasurement, getWeightsByBatch, deleteWeightMeasurement, updateWeightMeasurement, type WeightMeasurement } from "@/services/weightService";
+import { getRossTarget, predictWeightAtTime } from "@/lib/weightPrediction";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -47,22 +48,7 @@ type Barn = { id: string; nev: string };
 // ==================================================================================
 // --- ROSS 308 ADATBÁZIS (2024 - As Hatched / Vegyes Ivar) ---
 // ==================================================================================
-const ROSS308_STD: Record<number, number> = {
-  0: 0.042, 
-  1: 0.058, 2: 0.076, 3: 0.097, 4: 0.120, 5: 0.146, 6: 0.174, 7: 0.202,
-  8: 0.238, 9: 0.278, 10: 0.322, 11: 0.368, 12: 0.417, 13: 0.467, 14: 0.520,
-  15: 0.579, 16: 0.642, 17: 0.708, 18: 0.778, 19: 0.852, 20: 0.931, 21: 1.015,
-  22: 1.102, 23: 1.192, 24: 1.285, 25: 1.381, 26: 1.480, 27: 1.581, 28: 1.685,
-  29: 1.793, 30: 1.904, 31: 2.019, 32: 2.137, 33: 2.258, 34: 2.382, 35: 2.508,
-  36: 2.636, 37: 2.766, 38: 2.897, 39: 3.029, 40: 3.161, 41: 3.293, 42: 3.424,
-  43: 3.556, 44: 3.689, 45: 3.823, 46: 3.958, 47: 4.094, 48: 4.231, 49: 4.368
-};
-
-function getRossTarget(age: number): number {
-  if (age < 0) return 0.042;
-  if (age > 49) return 4.368 + (age - 49) * 0.138; 
-  return ROSS308_STD[age] || 0;
-}
+// Ross targets and hourly interpolation live in src/lib/weightPrediction.ts.
 
 function toId(input: string): string {
   return input ? input.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") : "";
@@ -159,7 +145,7 @@ function WeightTable({
 
               return (
                 <TableRow key={item.id || idx} className="hover:bg-slate-50/80 transition-colors group">
-                  <TableCell className="font-mono text-sm text-slate-600">{item.date}</TableCell>
+                  <TableCell className="font-mono text-sm text-slate-600">{item.date}{item.measuredTime ? ` ${item.measuredTime}` : ""}</TableCell>
                   <TableCell><Badge variant="secondary" className="bg-slate-100 text-slate-700 font-medium border-slate-200">{item.barnName}</Badge></TableCell>
                   <TableCell className="text-center"><span className="text-sm font-medium text-slate-700">{item.ageInDays} nap</span></TableCell>
                   <TableCell className="text-right">
@@ -566,7 +552,10 @@ export default function Weights() {
   const [selectedBarnId, setSelectedBarnId] = useState<string>("");
   const [date, setDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
   const [headCount, setHeadCount] = useState<string>(""); 
-  const [totalWeight, setTotalWeight] = useState<string>(""); 
+  const [totalWeight, setTotalWeight] = useState<string>("");
+  const [measuredTime, setMeasuredTime] = useState<string>("");
+  const [forecastAgeInput, setForecastAgeInput] = useState<string>("");
+  const [forecastTimeInput, setForecastTimeInput] = useState<string>("11:00");
   const [consumedFeed, setConsumedFeed] = useState<string>(""); 
 
   // --- SZERKESZTÉS STATE ---
@@ -574,7 +563,8 @@ export default function Weights() {
   const [editingItem, setEditingItem] = useState<WeightMeasurement | null>(null);
   const [editForm, setEditForm] = useState({
       date: "",
-      barnId: "",
+       measuredTime: "",
+       barnId: "",
       headCount: "",
       totalWeight: "",
       ageInDays: "" // <--- ÚJ: Kézzel szerkeszthető életkor
@@ -663,8 +653,11 @@ export default function Weights() {
               if (currentStd > 0) { diffPercent = ((currentWeight - currentStd) / currentStd) * 100; }
               const performanceRatio = currentStd > 0 ? currentWeight / currentStd : 1;
               const nextWeekStd = getRossTarget(currentAge + 7);
-              const projected = nextWeekStd * performanceRatio;
-              stats[barn.id] = { latest: currentWeight, diff: diffPercent, projected: projected, age: currentAge };
+              const timed = lastMeasure.measuredTime
+                  ? predictWeightAtTime(currentWeight, currentAge, lastMeasure.measuredTime, currentAge + 7, lastMeasure.measuredTime)
+                  : NaN;
+               const projected = Number.isFinite(timed) ? timed : nextWeekStd * performanceRatio;
+               stats[barn.id] = { latest: currentWeight, diff: diffPercent, projected, age: currentAge, measuredTime: lastMeasure.measuredTime || "" };
           }
       });
       setBarnPredictions(stats);
@@ -759,8 +752,8 @@ export default function Weights() {
   };
 
   const handleExportCSV = () => {
-      const header = ["Dátum", "Ól", "Kor (nap)", "Darab", "Összsúly (kg)", "Átlag (kg)", "FCR", "Hőmérséklet"];
-      const rows = history.map(h => [h.date, h.barnName, h.ageInDays, h.headCount, h.totalWeight, h.averageWeight.toFixed(3), h.fcr || "", h.weather?.temp || ""]);
+      const header = ["Dátum", "Idő", "Ól", "Kor (nap)", "Darab", "Összsúly (kg)", "Átlag (kg)", "FCR", "Hőmérséklet"];
+      const rows = history.map(h => [h.date, h.measuredTime || "", h.barnName, h.ageInDays, h.headCount, h.totalWeight, h.averageWeight.toFixed(3), h.fcr || "", h.weather?.temp || ""]);
       const csvContent = [header.join(";"), ...rows.map(r => r.join(";"))].join("\n");
       const blob = new Blob(["\ufeff" + csvContent], { type: "text/csv;charset=utf-8;" });
       const url = URL.createObjectURL(blob);
@@ -780,11 +773,11 @@ export default function Weights() {
     try {
       await addWeightMeasurement({
         batchId: turnus.id, barnId: selectedBarnId, barnName: barn?.nev || "Ismeretlen",
-        date: date, ageInDays: calculatedAge, headCount: countVal, totalWeight: weightVal,
+        date: date, measuredTime: measuredTime || undefined, ageInDays: calculatedAge, headCount: countVal, totalWeight: weightVal,
         averageWeight: avg, fcr: fcrVal, weather: currentWeather
       } as any);
       toast({ title: "Siker", description: "Mérés rögzítve." });
-      setHeadCount(""); setTotalWeight(""); setConsumedFeed("");
+      setHeadCount(""); setTotalWeight(""); setConsumedFeed(""); setMeasuredTime("");
       const updatedHistory = await getWeightsByBatch(turnus.id);
       setHistory(updatedHistory);
     } catch (error) { toast({ title: "Hiba", variant: "destructive" }); } 
@@ -826,7 +819,8 @@ export default function Weights() {
       setEditingItem(item);
       setEditForm({
           date: item.date,
-          barnId: item.barnId,
+           measuredTime: item.measuredTime || "",
+           barnId: item.barnId,
           headCount: item.headCount.toString(),
           totalWeight: item.totalWeight.toString(),
           ageInDays: item.ageInDays.toString() // Kezdőértéknek a jelenlegi kor
@@ -858,7 +852,8 @@ export default function Weights() {
               headCount: count,
               totalWeight: weight,
               averageWeight: weight / count,
-              ageInDays: age // <--- A kézi értéket mentjük
+               measuredTime: editForm.measuredTime || undefined,
+               ageInDays: age // <--- A kézi értéket mentjük
           });
           toast({ title: "Mentve", description: "A mérés frissítve." });
           setEditDialogOpen(false);
@@ -894,6 +889,20 @@ export default function Weights() {
         </div>
       </div>
 
+      {/* --- IDŐPONTOS ELŐREJELZÉS --- */}
+      <div className="flex items-end flex-wrap gap-3 rounded-lg bg-white p-4 border border-slate-200">
+          <div>
+              <Label htmlFor="forecast-day" className="text-xs">Előrejelzés napja (csirke kora)</Label>
+              <Input id="forecast-day" type="number" min="0" step="1" placeholder={`Mai nap: ${todayAge}`}
+                value={forecastAgeInput} onChange={e => setForecastAgeInput(e.target.value)} className="w-36" />
+          </div>
+          <div>
+              <Label htmlFor="forecast-time" className="text-xs">Előrejelzés időpontja</Label>
+              <Input id="forecast-time" type="time" value={forecastTimeInput}
+                onChange={e => setForecastTimeInput(e.target.value)} className="w-36" />
+          </div>
+          <span className="text-xs text-slate-500">Órás becsléshez a mérés óráját is rögzíteni kell.</span>
+      </div>
       {/* --- KPI STATISZTIKÁK --- */}
       {turnus && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 animate-in slide-in-from-bottom-4 duration-700">
@@ -943,6 +952,10 @@ export default function Weights() {
                 Object.entries(barnPredictions).map(([barnId, stats]: [string, any]) => {
                     const barnName = barns.find(b => b.id === barnId)?.nev || barnId;
                     const isPositive = stats.diff >= 0;
+                    const requestedAge = forecastAgeInput.trim() ? Number(forecastAgeInput) : todayAge;
+                    const timedForecast = stats.measuredTime && Number.isInteger(requestedAge) && requestedAge >= stats.age
+                      ? predictWeightAtTime(stats.latest, stats.age, stats.measuredTime, requestedAge, forecastTimeInput)
+                      : NaN;
                     
                     return (
                         <Card key={barnId} className={cn(
@@ -969,6 +982,12 @@ export default function Weights() {
                                     </Badge>
                                 </div>
 
+                                {Number.isFinite(timedForecast) && (
+                                    <div className="mb-3 rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2 flex justify-between items-center">
+                                        <span className="text-xs text-indigo-700">Becslés: {requestedAge}. nap, {forecastTimeInput}</span>
+                                        <span className="font-bold text-indigo-800">{(timedForecast * 1000).toFixed(1)} g</span>
+                                    </div>
+                                )}
                                 {/* Metrics Grid */}
                                 <div className="grid grid-cols-2 gap-3">
                                     {/* Measured */}
@@ -1059,6 +1078,10 @@ export default function Weights() {
                             </div>
                         </div>
 
+                        <div className="space-y-2">
+                            <Label className="text-slate-500 text-xs font-bold" htmlFor="measured-time">Mérés időpontja (opcionális, HH:mm)</Label>
+                            <Input id="measured-time" type="time" value={measuredTime} onChange={e => setMeasuredTime(e.target.value)} className="h-12" />
+                        </div>
                         {/* INFO SÁV */}
                         <div className="flex justify-between items-center bg-gradient-to-r from-slate-50 to-slate-100 px-4 py-3 rounded-xl border border-slate-200/60">
                              <span className="text-xs font-bold text-slate-600 flex items-center gap-2">
@@ -1265,6 +1288,11 @@ export default function Weights() {
                             setEditForm({...editForm, date: val, ageInDays: autoAge})
                         }} 
                       />
+                  </div>
+                  <div className="space-y-2">
+                      <Label>Mérés órája (HH:mm)</Label>
+                      <Input type="time" value={editForm.measuredTime}
+                        onChange={(e) => setEditForm({...editForm, measuredTime: e.target.value})} />
                   </div>
                   <div className="space-y-2">
                       <Label>Életkor (nap)</Label>
