@@ -39,7 +39,7 @@ import { farmCollection, farmDoc } from "@/lib/farmDb"; // <--- ÚJ IMPORT
 import { getDocs, query, where, orderBy, setDoc, serverTimestamp, getDoc, doc } from "firebase/firestore"; // collection törölve, doc megtartva típusnak ha kell, de függvényként farmDoc lesz
 import { getActiveTurnus, type TurnusDoc } from "@/services/turnus";
 import { addWeightMeasurement, getWeightsByBatch, deleteWeightMeasurement, updateWeightMeasurement, type WeightMeasurement } from "@/services/weightService";
-import { getRossTarget, predictWeightAtTime } from "@/lib/weightPrediction";
+import { getRossTarget, predictWeightAtTime, predictWeightAtTimeAdditive } from "@/lib/weightPrediction";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -584,12 +584,42 @@ export default function Weights() {
   const [barnStats, setBarnStats] = useState<{initial: number, mortality: number, current: number}>({ initial: 0, mortality: 0, current: 0 });
   
   // --- ÚJ: ÓL-SPECIFIKUS STATISZTIKÁK ---
-  const [barnPredictions, setBarnPredictions] = useState<Record<string, { 
-      latest: number, // Legutóbbi mért súly
-      diff: number,   // Eltérés a Ross sztenderdtől %-ban
-      projected: number, // Várható súly 1 hét múlva
-      age: number // A mérés kora
+  const [barnPredictions, setBarnPredictions] = useState<Record<string, {
+    latest: number;
+    diff: number;
+    projected: number;
+    projectedAdditive: number;
+    age: number;
+    measuredTime: string;
   }>>({});
+
+  // Későbbi mérést kizárólag visszateszthez használunk, előrejelzéshez nem.
+  const forecastAccuracy = useMemo(() => {
+    const results: Record<string, { count: number; ratioMaeG: number; additiveMaeG: number }> = {};
+    for (const barn of barns) {
+      const measurements = history
+        .filter(h => h.barnId === barn.id && h.measuredTime && Number.isFinite(h.averageWeight))
+        .sort((a, b) => a.ageInDays - b.ageInDays);
+      let ratioError = 0;
+      let additiveError = 0;
+      let count = 0;
+      for (let i = 1; i < measurements.length; i++) {
+        const previous = measurements[i - 1];
+        const actual = measurements[i];
+        if (actual.ageInDays <= previous.ageInDays) continue;
+        const ratio = predictWeightAtTime(previous.averageWeight, previous.ageInDays, previous.measuredTime, actual.ageInDays, actual.measuredTime);
+        const additive = predictWeightAtTimeAdditive(previous.averageWeight, previous.ageInDays, previous.measuredTime, actual.ageInDays, actual.measuredTime);
+        if (!Number.isFinite(ratio) || !Number.isFinite(additive)) continue;
+        ratioError += Math.abs(ratio - actual.averageWeight) * 1000;
+        additiveError += Math.abs(additive - actual.averageWeight) * 1000;
+        count++;
+      }
+      if (count > 0) {
+        results[barn.id] = { count, ratioMaeG: ratioError / count, additiveMaeG: additiveError / count };
+      }
+    }
+    return results;
+  }, [history, barns]);
 
   // --- IDŐJÁRÁS LEKÉRÉSE ---
   useEffect(() => {
@@ -657,7 +687,14 @@ export default function Weights() {
                   ? predictWeightAtTime(currentWeight, currentAge, lastMeasure.measuredTime, currentAge + 7, lastMeasure.measuredTime)
                   : NaN;
                const projected = Number.isFinite(timed) ? timed : nextWeekStd * performanceRatio;
-               stats[barn.id] = { latest: currentWeight, diff: diffPercent, projected, age: currentAge, measuredTime: lastMeasure.measuredTime || "" };
+               const timedAdditive = lastMeasure.measuredTime
+                  ? predictWeightAtTimeAdditive(currentWeight, currentAge, lastMeasure.measuredTime, currentAge + 7, lastMeasure.measuredTime)
+                  : NaN;
+               const projectedAdditive = Number.isFinite(timedAdditive) ? timedAdditive : currentWeight + nextWeekStd - currentStd;
+               stats[barn.id] = {
+                 latest: currentWeight, diff: diffPercent, projected, projectedAdditive,
+                 age: currentAge, measuredTime: lastMeasure.measuredTime || ""
+               };
           }
       });
       setBarnPredictions(stats);
@@ -953,9 +990,14 @@ export default function Weights() {
                     const barnName = barns.find(b => b.id === barnId)?.nev || barnId;
                     const isPositive = stats.diff >= 0;
                     const requestedAge = forecastAgeInput.trim() ? Number(forecastAgeInput) : todayAge;
-                    const timedForecast = stats.measuredTime && Number.isInteger(requestedAge) && requestedAge >= stats.age
+                    const canPredict = Boolean(stats.measuredTime) && Number.isInteger(requestedAge) && requestedAge >= stats.age;
+                    const timedForecast = canPredict
                       ? predictWeightAtTime(stats.latest, stats.age, stats.measuredTime, requestedAge, forecastTimeInput)
                       : NaN;
+                    const timedForecastAdditive = canPredict
+                      ? predictWeightAtTimeAdditive(stats.latest, stats.age, stats.measuredTime, requestedAge, forecastTimeInput)
+                      : NaN;
+                    const pastAccuracy = forecastAccuracy[barnId];
                     
                     return (
                         <Card key={barnId} className={cn(
@@ -982,10 +1024,33 @@ export default function Weights() {
                                     </Badge>
                                 </div>
 
-                                {Number.isFinite(timedForecast) && (
-                                    <div className="mb-3 rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2 flex justify-between items-center">
-                                        <span className="text-xs text-indigo-700">Becslés: {requestedAge}. nap, {forecastTimeInput}</span>
-                                        <span className="font-bold text-indigo-800">{(timedForecast * 1000).toFixed(1)} g</span>
+                                {Number.isFinite(timedForecast) && Number.isFinite(timedForecastAdditive) && (
+                                    <div className="mb-3 rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2 space-y-2">
+                                        <p className="text-xs font-semibold text-indigo-700">
+                                            Előrejelzések: {requestedAge}. nap, {forecastTimeInput}
+                                        </p>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-xs text-indigo-700">1. Arányos</span>
+                                            <span className="font-bold text-indigo-800">{(timedForecast * 1000).toFixed(2)} g</span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-xs text-indigo-700">2. Növekményes</span>
+                                            <span className="font-bold text-indigo-800">{(timedForecastAdditive * 1000).toFixed(2)} g</span>
+                                        </div>
+                                    </div>
+                                )}
+                                {pastAccuracy && (
+                                    <div className="mb-3 rounded-lg border border-slate-200 bg-white px-3 py-2 space-y-1">
+                                        <p className="text-xs font-semibold text-slate-700">
+                                            Visszateszt ({pastAccuracy.count} méréspár, átlagos abszolút hiba)
+                                        </p>
+                                        <p className="text-xs text-slate-600">
+                                            Arányos: {pastAccuracy.ratioMaeG.toFixed(2)} g ·
+                                            Növekményes: {pastAccuracy.additiveMaeG.toFixed(2)} g
+                                        </p>
+                                        <p className="text-[10px] text-slate-500">
+                                            A korábbi mérések a becslés ellenőrzéséhez szolgálnak.
+                                        </p>
                                     </div>
                                 )}
                                 {/* Metrics Grid */}
@@ -1007,10 +1072,10 @@ export default function Weights() {
         {/* Itt számoljuk ki a következő hetet: (jelenlegi kor + 7) / 7 */}
         <TrendingIcon className="h-3 w-3" /> {Math.round((stats.age + 7) / 7)}. Hét (Jósolt)
     </span>
-    <div className="text-xl font-black text-indigo-600 tracking-tight bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-        {stats.projected.toFixed(2)}
-        <span className="text-xs font-semibold text-indigo-300 ml-1">kg</span>
+    <div className="text-lg font-black text-indigo-600 tracking-tight">
+        {stats.projected.toFixed(3)} <span className="text-xs font-semibold text-indigo-300">kg</span>
     </div>
+    <p className="text-[10px] text-slate-600">2. Növekményes: {stats.projectedAdditive.toFixed(3)} kg</p>
 </div>
                                 </div>
                             </div>
