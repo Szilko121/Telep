@@ -18,6 +18,8 @@ export interface WeightMeasurement {
   barnId: string;
   barnName: string;
   date: string;
+  /** Optional HH:mm local clock time for hour-accurate forecasting. */
+  measuredTime?: string;
   ageInDays: number;
   headCount: number;
   totalWeight: number;
