@@ -55,3 +55,24 @@ export function predictWeightAtTime(
   if (measuredStandard <= 0) return NaN;
   return measuredWeightKg * getRossTarget(targetAge) / measuredStandard;
 }
+
+/**
+ * Alternative model: keep the measured weight as the starting point and add
+ * the Ross reference's predicted gain over the exact elapsed time.
+ *
+ * Unlike the proportional model, a bird's initial deviation from the
+ * reference is treated as a fixed weight difference rather than a ratio.
+ */
+export function predictWeightAtTimeAdditive(
+  measuredWeightKg: number,
+  measuredAgeDays: number,
+  measuredClockTime: string,
+  targetAgeDays: number,
+  targetClockTime: string,
+): number {
+  if (!Number.isFinite(measuredWeightKg) || measuredWeightKg <= 0) return NaN;
+  const measuredAge = fractionalAgeAtTime(measuredAgeDays, measuredClockTime);
+  const targetAge = fractionalAgeAtTime(targetAgeDays, targetClockTime);
+  if (!Number.isFinite(measuredAge) || !Number.isFinite(targetAge) || targetAge < measuredAge) return NaN;
+  return measuredWeightKg + getRossTarget(targetAge) - getRossTarget(measuredAge);
+}
