@@ -30,7 +30,7 @@ export function getRossTarget(ageInDays: number): number {
  * For a truly exact biological age, placement / hatch time must also be known.
  */
 export function fractionalAgeAtTime(ageInWholeDays: number, clockTime: string): number {
-  const match = /^([01]\\d|2[0-3]):([0-5]\\d)$/.exec(clockTime);
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(clockTime);
   if (!Number.isInteger(ageInWholeDays) || ageInWholeDays < 0 || !match) return NaN;
   return ageInWholeDays + (Number(match[1]) * 60 + Number(match[2])) / 1440;
 }
